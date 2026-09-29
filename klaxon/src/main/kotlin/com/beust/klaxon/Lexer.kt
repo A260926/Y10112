@@ -14,9 +14,13 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
     private val NUMERIC = Pattern.compile("[-]?[0-9]+")
     private val DOUBLE = Pattern.compile(NUMERIC.toString() + "((\\.[0-9]+)?([eE][-+]?[0-9]+)?)")!!
 
+    private fun isWhitespace(c: Char): Boolean {
+        return c == ' ' || c == '\r' || c == '\n' || c == '\t'
+    }
+
     private fun isSpace(c: Char): Boolean {
         if (c == '\n') line++
-        return c == ' ' || c == '\r' || c == '\n' || c == '\t'
+        return isWhitespace(c)
     }
 
     private val reader = passedReader.buffered()
@@ -171,7 +175,10 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
         } else if (',' == c) {
             token = COMMA
             expectName = true
-        } else if (!isDone) {
+        } else if (!isDone || !isWhitespace(c)) {
+            // Note: when the whitespace-skipping loop above consumed the very last
+            // character of the input, `isDone` is true but `c` still holds a token
+            // character that must be tokenized instead of being dropped as EOF.
             while (isValueLetter(c)) {
                 currentValue.append(c)
                 if (isDone || !isValueLetter(peekChar())) {
@@ -193,9 +200,9 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
                 }
             } else if (DOUBLE.matcher(v).matches()) {
                 token = Value(java.lang.Double.parseDouble(v))
-            } else if ("true" == v.toLowerCase()) {
+            } else if ("true" == v.lowercase()) {
                 token = Value(true)
-            } else if ("false" == v.toLowerCase()) {
+            } else if ("false" == v.lowercase()) {
                 token = Value(false)
             } else if (v == "null") {
                 token = Value(null)

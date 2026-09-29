@@ -27,15 +27,16 @@ internal class KlaxonParser(
 
     /**
      * A loop that ends either on an EOF or a closing brace or bracket (used in streaming mode).
+     *
+     * When the value ends, the token that follows it is left for the caller.
      */
     private fun partialParseLoop(sm: StateMachine, reader: Reader): Any {
-        val lexer = passedLexer ?: Lexer(reader)
-
-        var world = World(Status.INIT, pathMatchers)
+        val cursor = TokenCursor(passedLexer, reader)
+        var world = World(Status.INIT, pathMatchers, cursor.pathTracker)
         var wasNested: Boolean
-        if (lexer.peek() is COMMA) lexer.nextToken()
+        if (cursor.peek() is COMMA) cursor.next()
         do {
-            val token = lexer.nextToken()
+            val token = cursor.next()
             log("Token: $token")
             wasNested = world.isNestedStatus()
             world = sm.next(world, token)
@@ -50,18 +51,20 @@ internal class KlaxonParser(
 
     /**
      * A loop that only ends on EOF (used in non streaming mode).
+     *
+     * After the single root value has been consumed, only whitespace is
+     * allowed: any other token makes the state machine reject the document.
      */
     private fun fullParseLoop(sm: StateMachine, reader: Reader): Any {
-        val lexer = passedLexer ?: Lexer(reader)
-
-        var world = World(Status.INIT, pathMatchers)
+        val cursor = TokenCursor(passedLexer, reader)
+        var world = World(Status.INIT, pathMatchers, cursor.pathTracker)
         do {
-            val token = lexer.nextToken()
+            val token = cursor.next()
             log("Token: $token")
-            world.index = lexer.index
-            world.line = lexer.line
+            world.index = cursor.index
+            world.line = cursor.line
             world = sm.next(world, token)
-        } while (token !is EOF)
+        } while (!cursor.exhausted)
 
         return world.result!!
     }

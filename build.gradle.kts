@@ -19,14 +19,30 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
+allprojects {
+    tasks.withType<JavaCompile>().configureEach {
+        sourceCompatibility = "1.8"
+        targetCompatibility = "1.8"
+    }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
+    }
+}
+
 repositories {
-    jcenter()
     mavenCentral()
     maven { setUrl("https://plugins.gradle.org/m2") }
 }
 
 val test by tasks.getting(Test::class) {
     useTestNG()
+    // Tests live in the subprojects: don't fail when a --tests filter
+    // matches nothing in this (empty) root project.
+    filter {
+        isFailOnNoMatchingTests = false
+    }
 }
 
 dependencies {
@@ -36,7 +52,7 @@ dependencies {
     listOf("test").forEach {
         testImplementation(kotlin(it))
     }
-    listOf("org.testng:testng:7.0.0", "org.assertj:assertj-core:3.10.0").forEach {
+    listOf("org.testng:testng:7.5.1", "org.assertj:assertj-core:3.10.0").forEach {
         testImplementation(it)
     }
 

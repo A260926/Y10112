@@ -29,7 +29,7 @@ dependencies {
     listOf("test").forEach {
         testImplementation(kotlin(it))
     }
-    listOf("org.testng:testng:7.0.0", "org.assertj:assertj-core:3.10.0").forEach {
+    listOf("org.testng:testng:7.5.1", "org.assertj:assertj-core:3.10.0").forEach {
         testImplementation(it)
     }
 
@@ -104,7 +104,7 @@ with(publishing) {
         }
         maven {
             name = "myRepo"
-            url = uri("file://$buildDir/repo")
+            url = uri("file://${layout.buildDirectory.get()}/repo")
         }
     }
 }

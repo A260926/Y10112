@@ -2,7 +2,14 @@ package com.beust.klaxon
 
 import java.util.*
 
-class World(var status : Status, val pathMatchers: List<PathMatcher> = emptyList()) {
+class World internal constructor(
+    var status: Status,
+    val pathMatchers: List<PathMatcher>,
+    private val pathTracker: PathTracker
+) {
+    constructor(status: Status, pathMatchers: List<PathMatcher> = emptyList())
+            : this(status, pathMatchers, PathTracker())
+
     private val statusStack = LinkedList<Status>()
     private val valueStack = LinkedList<Any>()
     var result : Any? = null
@@ -12,25 +19,7 @@ class World(var status : Status, val pathMatchers: List<PathMatcher> = emptyList
      * The path of the current JSON element.
      * See https://github.com/json-path/JsonPath
      */
-    val path: String get() {
-        val result = arrayListOf("$")
-        valueStack.reversed().forEach { value ->
-            when(value) {
-                is JsonObject -> {
-                    if (value.any()) {
-                        result.add("." + value.keys.last().toString())
-                    }
-                }
-                is JsonArray<*> -> {
-                    result.add("[" + (value.size - 1) + "]")
-                }
-                else -> {
-                    result.add("." + value)
-                }
-            }
-        }
-        return result.joinToString("")
-    }
+    val path: String get() = pathTracker.path
 
     fun pushAndSet(status: Status, value: Any) : World {
         pushStatus(status)
@@ -46,6 +35,7 @@ class World(var status : Status, val pathMatchers: List<PathMatcher> = emptyList
 
     private fun pushValue(value: Any) : World {
         valueStack.addFirst(value)
+        pathTracker.push(value)
         return this
     }
 
@@ -60,7 +50,9 @@ class World(var status : Status, val pathMatchers: List<PathMatcher> = emptyList
     var line: Int = 0
 
     fun popValue() : Any {
-        return valueStack.removeFirst()
+        val result = valueStack.removeFirst()
+        pathTracker.pop()
+        return result
     }
 
     fun popStatus() : Status {
