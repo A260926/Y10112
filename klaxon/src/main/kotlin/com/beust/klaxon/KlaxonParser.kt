@@ -21,49 +21,33 @@ internal class KlaxonParser(
     }
 
     override fun parse(reader: Reader): Any {
-        return if (streaming) partialParseLoop(stateMachine, (reader as JsonReader).reader)
-        else fullParseLoop(stateMachine, reader)
+        // Streaming mode is driven by a JsonReader whose own lexer is shared across consecutive
+        // parses so that the next token after a value stays available to the caller.
+        val source = if (streaming) (reader as JsonReader).reader else reader
+        val cursor = TokenCursor(passedLexer ?: Lexer(source), pathMatchers, streaming)
+        return parseLoop(cursor)
     }
 
     /**
-     * A loop that ends either on an EOF or a closing brace or bracket (used in streaming mode).
+     * The single token-driving loop shared by full and streaming parses.
+     *
+     * Full mode consumes exactly one root value and then only EOF (i.e. trailing whitespace).
+     * Streaming mode stops as soon as a root container closes, leaving the next token buffered
+     * in the shared lexer; nested containers are always consumed in full.
      */
-    private fun partialParseLoop(sm: StateMachine, reader: Reader): Any {
-        val lexer = passedLexer ?: Lexer(reader)
-
-        var world = World(Status.INIT, pathMatchers)
-        var wasNested: Boolean
-        if (lexer.peek() is COMMA) lexer.nextToken()
+    private fun parseLoop(cursor: TokenCursor): Any {
+        val sm = stateMachine
+        var world = World(Status.INIT)
+        if (streaming && cursor.peek() is COMMA) cursor.next()
         do {
-            val token = lexer.nextToken()
-            log("Token: $token")
-            wasNested = world.isNestedStatus()
-            world = sm.next(world, token)
-        } while (wasNested || (token !is RIGHT_BRACE &&
-                token !is RIGHT_BRACKET &&
-                token !is EOF
-                )
-        )
+            val token = cursor.peek()
+            val wasNested = cursor.nestedBefore(token)
+            val advanced = cursor.next()
+            log("Token: $advanced at index ${cursor.index}, line ${cursor.line}, path ${cursor.path}")
+            world = sm.next(world, advanced, cursor)
+        } while (cursor.consumeRootValue(advanced, wasNested))
 
-        return world.popValue() as JsonBase
-    }
-
-    /**
-     * A loop that only ends on EOF (used in non streaming mode).
-     */
-    private fun fullParseLoop(sm: StateMachine, reader: Reader): Any {
-        val lexer = passedLexer ?: Lexer(reader)
-
-        var world = World(Status.INIT, pathMatchers)
-        do {
-            val token = lexer.nextToken()
-            log("Token: $token")
-            world.index = lexer.index
-            world.line = lexer.line
-            world = sm.next(world, token)
-        } while (token !is EOF)
-
-        return world.result!!
+        return if (streaming) world.popValue() as JsonBase else world.result!!
     }
 
     //
@@ -102,7 +86,6 @@ internal class KlaxonParser(
             put(
                 Status.IN_OBJECT,
                 COMMA.tokenType, { world: World, _: Token ->
-                world.foundValue()
                 world
             })
             put(
@@ -113,7 +96,6 @@ internal class KlaxonParser(
             put(
                 Status.IN_OBJECT,
                 RIGHT_BRACE.tokenType, { world: World, _: Token ->
-                world.foundValue()
                 with(world) {
                     status = if (hasValues()) {
                         popStatus()
@@ -193,7 +175,6 @@ internal class KlaxonParser(
             put(
                 Status.IN_ARRAY,
                 RIGHT_BRACKET.tokenType, { world: World, _: Token ->
-                world.foundValue()
                 with(world) {
                     status = if (hasValues()) {
                         popStatus()

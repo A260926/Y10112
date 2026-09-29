@@ -5,14 +5,14 @@ import com.beust.klaxon.token.TokenType
 
 private data class TokenStatus(val status: Status, val tokenType: TokenType)
 
-class StateMachine(private val streaming: Boolean) {
+internal class StateMachine(private val streaming: Boolean) {
     private val map = hashMapOf<TokenStatus, (world: World, token: Token) -> World>()
 
     fun put(status: Status, tokenType: TokenType, processor: (world: World, token: Token) -> World) {
         map[TokenStatus(status, tokenType)] = processor
     }
 
-    fun next(world: World, token: Token) : World {
+    fun next(world: World, token: Token, cursor: TokenCursor) : World {
         val pair = TokenStatus(world.status, token.tokenType)
         val processor = map[pair]
 
@@ -35,7 +35,7 @@ class StateMachine(private val streaming: Boolean) {
                         if (validTokens.size == 1) validTokens[0]
                         else formatList(validTokens)
 
-                val message = "Expected $validTokenMessage, not '$token' at line ${world
+                val message = "Expected $validTokenMessage, not '$token' at line ${cursor
                         .line}" +
                     "\n   (internal error: \"No processor found for: (${world.status}, $token)\""
                 throw KlaxonException(message)

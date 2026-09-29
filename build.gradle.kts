@@ -27,6 +27,11 @@ repositories {
 
 val test by tasks.getting(Test::class) {
     useTestNG()
+    // The root project contains no tests; a --tests filter must not fail this task
+    // when the matching tests live in a subproject.
+    filter {
+        isFailOnNoMatchingTests = false
+    }
 }
 
 dependencies {

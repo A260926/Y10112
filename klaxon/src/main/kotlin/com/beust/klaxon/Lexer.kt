@@ -85,7 +85,11 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
             c = nextChar()
         }
 
-        if ('"' == c || (lenient && expectName)) {
+        if (isDone && isSpace(c)) {
+            // Trailing whitespace was consumed while reading the final character:
+            // EOF is the only token left.
+            token = EOF
+        } else if ('"' == c || (lenient && expectName)) {
             if (lenient) {
                 currentValue.append(c)
             }
@@ -171,7 +175,7 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
         } else if (',' == c) {
             token = COMMA
             expectName = true
-        } else if (!isDone) {
+        } else {
             while (isValueLetter(c)) {
                 currentValue.append(c)
                 if (isDone || !isValueLetter(peekChar())) {
@@ -203,9 +207,6 @@ class Lexer(passedReader: Reader, val lenient: Boolean = false): Iterator<Token>
                 throw KlaxonException("Unexpected character at position ${index-1}"
                         + ": '$c' (ASCII: ${c.toInt()})'")
             }
-
-        } else {
-            token = EOF
         }
 
         return token
